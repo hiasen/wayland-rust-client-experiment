@@ -1,0 +1,18 @@
+[package]
+name = "wayland-book-rust"
+version = "0.1.0"
+authors = ["Øystein Hiåsen <oystein.hiaasen@gmail.com>"]
+edition = "2018"
+
+
+
+[dependencies]
+wayland-client = "0.26.6"
+nix = "0.17.0"
+
+[dependencies.wayland-protocols]
+version = "0.26.6"
+features = ["client",]
+
+[workspace]
+members = ["server"]
