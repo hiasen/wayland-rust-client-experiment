@@ -33,6 +33,20 @@ impl Painter {
                 .map_mut(&file)?
         };
         let offset = (self.offset as i32) % 8;
+        self.draw_checkerboard_pattern(&mut buffer, width, height, offset);
+
+        let pool = self.shm.create_pool(file.as_raw_fd(), size);
+        let wl_buffer = pool.create_buffer(0, width, height, stride, wl_shm::Format::Xrgb8888);
+        pool.destroy();
+        wl_buffer.quick_assign(|buffer, event, _| {
+            if let wl_buffer::Event::Release = event {
+                buffer.destroy();
+            }
+        });
+        Ok(wl_buffer.detach())
+    }
+
+    fn draw_checkerboard_pattern(&self, buffer: &mut [u8], width: i32, height: i32, offset: i32) {
         let color1 = (0xFF666666 as u32).to_le_bytes();
         let color2 = (0xFFEEEEEE as u32).to_le_bytes();
         let mut index = 0;
@@ -51,15 +65,6 @@ impl Painter {
                 index += 4;
             }
         }
-        let pool = self.shm.create_pool(file.as_raw_fd(), size);
-        let wl_buffer = pool.create_buffer(0, width, height, stride, wl_shm::Format::Xrgb8888);
-        pool.destroy();
-        wl_buffer.quick_assign(|buffer, event, _| {
-            if let wl_buffer::Event::Release = event {
-                buffer.destroy();
-            }
-        });
-        Ok(wl_buffer.detach())
     }
     pub fn update_time(&mut self, time: u32) {
         if self.last_frame != 0 {
