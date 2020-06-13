@@ -5,7 +5,6 @@ use wayland_client::{
     protocol::{wl_buffer, wl_shm},
     Main,
 };
-use memmap2;
 
 pub struct Painter {
     shm: Main<wl_shm::WlShm>,
@@ -25,17 +24,10 @@ impl Painter {
         let height = 400;
         let stride = 4 * width;
         let size = height * stride;
-        let file = shared_memory::create_anonymous_file()?;
-        file.set_len(size as u64)?;
-        let mut buffer = unsafe { 
-            memmap2::MmapOptions::new()
-                .len(size as usize)
-                .map_mut(&file)?
-        };
-        let offset = (self.offset as i32) % 8;
-        self.draw_checkerboard_pattern(&mut buffer, width, height, offset);
+        let mut buffer = shared_memory::MemMap::anon_file(size as usize)?;
+        self.draw_checkerboard_pattern(&mut buffer, width, height, (self.offset as i32) % 8);
 
-        let pool = self.shm.create_pool(file.as_raw_fd(), size);
+        let pool = self.shm.create_pool(buffer.backing_file().as_raw_fd(), size);
         let wl_buffer = pool.create_buffer(0, width, height, stride, wl_shm::Format::Xrgb8888);
         pool.destroy();
         wl_buffer.quick_assign(|buffer, event, _| {
