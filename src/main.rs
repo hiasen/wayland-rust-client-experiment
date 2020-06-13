@@ -6,11 +6,9 @@ use wayland_client::{
     Display,
     Filter,
     GlobalManager,
-    Main,
     protocol::{
         wl_compositor::WlCompositor,
-        wl_shm,
-        wl_callback,
+        wl_shm::WlShm,
     },
 };
 
@@ -28,14 +26,14 @@ fn main() -> Result<(), Box<dyn Error>>{
     let mut event_queue = display.create_event_queue();
     let token = event_queue.token();
     let attached = display.attach(token);
-    let global = GlobalManager::new_with_cb(&attached, debug_callbacks::print_global_event);
+    let global = GlobalManager::new(&attached);
     event_queue.sync_roundtrip(&mut (), |_,_,_| { unreachable!(); })?;
 
 
     // Globals
     let compositor = global.instantiate_exact::<WlCompositor>(4)?;
     let xdg_wm_base = global.instantiate_exact::<xdg_wm_base::XdgWmBase>(1)?;
-    let shm = global.instantiate_exact::<wl_shm::WlShm>(1)?;
+    let shm = global.instantiate_exact::<WlShm>(1)?;
     
     xdg_wm_base.quick_assign(|obj, event, _| {
         if let xdg_wm_base::Event::Ping { serial } = event {
@@ -49,17 +47,44 @@ fn main() -> Result<(), Box<dyn Error>>{
     let toplevel = xdg_surface.get_toplevel();
     toplevel.set_title(String::from("Example client"));
     surface.commit();
-    
-   
+
+
     let painter = Rc::new(RefCell::new(painter::Painter::new(shm.clone())));
 
     xdg_surface.quick_assign({
         let surface = surface.clone();
         let painter = painter.clone();
+        let mut is_first_frame = true;
         move |xdg_surface, event, _| {
             if let xdg_surface::Event::Configure {serial} = event {
                 xdg_surface.ack_configure(serial);
-                let buffer = painter.borrow().draw().unwrap();
+                if is_first_frame {
+                    let buffer = {
+                        let painter = painter.borrow_mut();
+                        painter.draw()
+                    }.expect("Failed to draw first frame");
+                    surface.attach(Some(&buffer), 0, 0);
+                    surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
+                    surface.commit();
+                    is_first_frame = false;
+                }
+            }
+        }
+    });
+
+    let filter = Filter::new({
+        let surface = surface.clone();
+        let painter = painter.clone();
+
+        move |event, filter, _| {
+            use wayland_client::protocol::wl_callback::Event::Done;
+            if let (_, Done { callback_data: time }) = event {
+                surface.frame().assign(filter.clone());
+                let buffer = {
+                    let mut painter = painter.borrow_mut();
+                    painter.update_time(time);
+                    painter.draw()
+                }.expect("Failed to draw frame");
                 surface.attach(Some(&buffer), 0, 0);
                 surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
                 surface.commit();
@@ -67,23 +92,9 @@ fn main() -> Result<(), Box<dyn Error>>{
         }
     });
 
-    surface.frame().assign(Filter::<(Main<wl_callback::WlCallback>, wl_callback::Event)>::new({
-        let surface = surface.clone();
-        let painter = painter.clone();
-        move |event, filter, _data| {
-            if let (_, wl_callback::Event::Done {callback_data: time}) = event {
-                surface.frame().assign(filter.clone());
-                let mut painter = painter.borrow_mut();
-                painter.update_time(time);
-                let buffer = painter.draw().unwrap();
-                surface.attach(Some(&buffer), 0, 0);
-                surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
-                surface.commit();
-            }
-        }
-    }));
+    surface.frame().assign(filter);
 
     loop {
-        event_queue.dispatch(&mut (), debug_callbacks::print_unfiltered_events)?;
+        event_queue.dispatch(&mut (), |_, _, _| {})?;
     }
 }
