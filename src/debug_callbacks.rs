@@ -19,6 +19,7 @@ pub fn print_global_event(event: GlobalEvent , _registry: Attached<WlRegistry>, 
     }
 }
 
+#[allow(dead_code)]
 pub fn print_unfiltered_events(event: RawEvent, _obj: Main<AnonymousObject> , _data: DispatchData) {
     eprintln!("Uncaught event: {}::{}", event.interface, event.name);
 }

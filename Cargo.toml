@@ -10,6 +10,7 @@ edition = "2018"
 wayland-client = "0.26.6"
 nix = "0.17.0"
 memmap2 = "0.1.0"
+bitflags = "1.2.1"
 
 [dependencies.wayland-protocols]
 version = "0.26.6"
