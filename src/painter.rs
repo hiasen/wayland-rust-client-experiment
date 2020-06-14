@@ -13,9 +13,9 @@ pub struct Painter {
 }
 
 impl Painter {
-    pub fn new(shm: Main<wl_shm::WlShm>) -> Painter {
+    pub fn new(shm: &Main<wl_shm::WlShm>) -> Painter {
         Painter {
-            shm,
+            shm: shm.clone(),
             offset: 0.0,
             last_frame: 0,
         }
