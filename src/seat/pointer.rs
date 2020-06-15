@@ -44,7 +44,7 @@ impl Handler {
                     pointer_event.update(event);
                 }});
             self.current_pointer = Some(pointer.detach());
-        } else if !have_pointer & self.current_pointer.is_some() {
+        } else if !have_pointer && self.current_pointer.is_some() {
             self.current_pointer.take().unwrap().release();
         }
     }
