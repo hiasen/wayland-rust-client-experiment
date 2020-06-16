@@ -1,48 +1,23 @@
 use bitflags::bitflags;
-use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 use wayland_client::{
     protocol::{
         wl_pointer::{ButtonState, Event, Event::*, WlPointer},
-        wl_seat::WlSeat,
     },
     Main,
 };
 
-pub struct Handler {
-    current_pointer: Option<WlPointer>,
-    seat: Main<WlSeat>,
-    pointer_event: Rc<RefCell<PointerEvent>>,
-}
-
-impl Handler {
-    pub fn new(seat: &Main<WlSeat>) -> Handler {
-        Handler {
-            current_pointer: None,
-            seat: seat.clone(),
-            pointer_event: Default::default(),
+pub fn handle(pointer: &Main<WlPointer>) {
+    let mut pointer_event = PointerEvent::default();
+    pointer.quick_assign(move |_pointer,  event, _data| {
+        match event {
+            Frame => {
+                eprintln!("{}", pointer_event);
+                pointer_event = Default::default();
+            }
+            _ => {pointer_event.update(event);},
         }
-    }
-
-    pub fn status_update(&mut self, have_pointer: bool) {
-        if have_pointer && self.current_pointer.is_none() {
-            let pointer = self.seat.get_pointer();
-            let pointer_event = self.pointer_event.clone();
-            pointer.quick_assign(move |_, event, _| {
-                let mut pointer_event = pointer_event.borrow_mut();
-                if let Frame = event {
-                    eprintln!("{}", pointer_event);
-                    *pointer_event = Default::default();
-                } else {
-                    pointer_event.update(event);
-                }
-            });
-            self.current_pointer = Some(pointer.detach());
-        } else if !have_pointer && self.current_pointer.is_some() {
-            self.current_pointer.take().unwrap().release();
-        }
-    }
+    });
 }
 
 bitflags! {
@@ -56,6 +31,7 @@ bitflags! {
         const AXIS_SOURCE = 1 << 5;
         const AXIS_STOP = 1 << 6;
         const AXIS_DISCRETE = 1 << 7;
+        const AXIS_EVENTS = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
     }
 }
 
@@ -142,6 +118,29 @@ impl PointerEvent {
             _ => (),
         }
     }
+    fn axis_name(i: usize) -> &'static str {
+        use wayland_client::protocol::wl_pointer::Axis;
+        if let Option::Some(Axis::VerticalScroll) = Axis::from_raw(i as u32) {
+            "vertical"
+        } else {
+            "horizontal"
+        }
+    }
+
+    fn axis_source_type(x: u32) -> &'static str{
+        use wayland_client::protocol::wl_pointer::AxisSource;
+        if let Some(source) = AxisSource::from_raw(x) {
+            match source {
+                AxisSource::Wheel => "wheel",
+                AxisSource::Finger => "finger",
+                AxisSource::Continuous => "continous",
+                AxisSource::WheelTilt => "wheel tilt",
+                _ => "unknown source",
+            }
+        } else {
+            "unknown source"
+        }
+    }
 }
 
 impl fmt::Display for PointerEvent {
@@ -169,40 +168,12 @@ impl fmt::Display for PointerEvent {
             write!(f, "button {}, {}", self.button, state)?;
         }
 
-        let axis_events = EventMask::AXIS
-            | EventMask::AXIS_SOURCE
-            | EventMask::AXIS_STOP
-            | EventMask::AXIS_DISCRETE;
-
-        let axis_name = |i| {
-            use wayland_client::protocol::wl_pointer::Axis;
-            if let Option::Some(Axis::VerticalScroll) = Axis::from_raw(i) {
-                "vertical"
-            } else {
-                "horizontal"
-            }
-        };
-        let axis_source = |x| {
-            use wayland_client::protocol::wl_pointer::AxisSource;
-            if let Some(source) = AxisSource::from_raw(x) {
-                match source {
-                    AxisSource::Wheel => "wheel",
-                    AxisSource::Finger => "finger",
-                    AxisSource::Continuous => "continous",
-                    AxisSource::WheelTilt => "wheel tilt",
-                    _ => "unknown source",
-                }
-            } else {
-                "unknown source"
-            }
-        };
-
-        if self.event_mask.intersects(axis_events) {
+        if self.event_mask.intersects(EventMask::AXIS_EVENTS) {
             for (i, a) in self.axes.iter().enumerate() {
                 if !a.valid {
                     continue;
                 }
-                write!(f, "{} axis ", axis_name(i as u32))?;
+                write!(f, "{} axis ", Self::axis_name(i))?;
                 if self.event_mask.contains(EventMask::AXIS) {
                     write!(f, "value {} ", a.value)?;
                 }
@@ -210,7 +181,7 @@ impl fmt::Display for PointerEvent {
                     write!(f, "discrete {} ", a.discrete)?;
                 }
                 if self.event_mask.contains(EventMask::AXIS_SOURCE) {
-                    write!(f, "via {} ", axis_source(self.axis_source))?;
+                    write!(f, "via {} ", Self::axis_source_type(self.axis_source))?;
                 }
                 if self.event_mask.contains(EventMask::AXIS_STOP) {
                     write!(f, "(stopped) ")?;
