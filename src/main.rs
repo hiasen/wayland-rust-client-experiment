@@ -29,10 +29,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let shm = global.instantiate_exact::<WlShm>(1)?;
     let seat = global.instantiate_exact::<WlSeat>(5)?;
 
-    xdg_wm_base.quick_assign(|obj, event, _| {
-        if let xdg_wm_base::Event::Ping { serial } = event {
-            obj.pong(serial);
-        }
+    xdg_wm_base.quick_assign(|obj, event, _| match event {
+        xdg_wm_base::Event::Ping { serial } => obj.pong(serial),
+        _ => ()
     });
 
     surface::setup(&compositor, &xdg_wm_base, &shm);

@@ -26,8 +26,10 @@ impl Painter {
         let stride = 4 * width;
         let size = height * stride;
         let mut buffer = shared_memory::MemMap::anon_file(size)?;
-        let u32_buffer = u8_to_u32_slice(&mut buffer);
-        self.draw_checkerboard_pattern(u32_buffer, width, (self.offset as usize) % 8);
+        let (_, pixel_buffer, _) = unsafe { (&mut buffer).align_to_mut() };
+        assert_eq!(pixel_buffer.len(), width * height);
+
+        self.draw_checkerboard_pattern(pixel_buffer, width, (self.offset as usize) % 8);
 
         let pool = self
             .shm
@@ -40,10 +42,9 @@ impl Painter {
             wl_shm::Format::Xrgb8888,
         );
         pool.destroy();
-        wl_buffer.quick_assign(|buffer, event, _| {
-            if let wl_buffer::Event::Release = event {
-                buffer.destroy();
-            }
+        wl_buffer.quick_assign(|buffer, event, _| match event {
+            wl_buffer::Event::Release => buffer.destroy(),
+            _ => (),
         });
         Ok(wl_buffer.detach())
     }
@@ -66,11 +67,4 @@ impl Painter {
         }
         self.last_frame = time;
     }
-}
-
-fn u8_to_u32_slice(x: &mut [u8]) -> &mut [u32] {
-    assert!(x.len() % 4 == 0);
-    let ptr = x.as_mut_ptr();
-    let ptr = unsafe { std::mem::transmute(ptr) };
-    unsafe { std::slice::from_raw_parts_mut(ptr, x.len() / 4) }
 }

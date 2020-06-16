@@ -18,7 +18,7 @@ pub struct MemMap {
     file: File,
 }
 
-impl MemMap {
+impl<'a> MemMap {
     pub fn anon_file(size: usize) -> Result<MemMap, Box<dyn std::error::Error>> {
         let file = create_anonymous_file()?;
         file.set_len(size as u64)?;
@@ -29,8 +29,8 @@ impl MemMap {
         };
         Ok(MemMap { buffer, file })
     }
-    pub fn backing_file(&self) -> File {
-        self.file.try_clone().unwrap()
+    pub fn backing_file(&'a self) -> &'a File {
+        &self.file
     }
 }
 
@@ -75,6 +75,6 @@ mod tests {
     #[test]
     fn backing_file() {
         let m = MemMap::anon_file(10).unwrap();
-        let _file: File = m.backing_file();
+        let _file: &File = m.backing_file();
     }
 }

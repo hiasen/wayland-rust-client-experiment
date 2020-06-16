@@ -21,53 +21,45 @@ pub fn setup(
     surface.commit();
 
     let painter = Rc::new(RefCell::new(painter::Painter::new(&shm)));
+
     xdg_surface.quick_assign({
+
         let surface = surface.clone();
         let painter = painter.clone();
-        let mut is_first_frame = true;
-        move |xdg_surface, event, _| {
-            if let xdg_surface::Event::Configure { serial } = event {
+
+        move |xdg_surface, event, _| match event {
+            xdg_surface::Event::Configure { serial } => {
                 xdg_surface.ack_configure(serial);
-                if is_first_frame {
-                    let buffer = {
-                        let painter = painter.borrow_mut();
-                        painter.draw()
-                    }
+                let buffer = painter.borrow().draw()
                     .expect("Failed to draw first frame");
-                    surface.attach(Some(&buffer), 0, 0);
-                    surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
-                    surface.commit();
-                    is_first_frame = false;
-                }
+                surface.attach(Some(&buffer), 0, 0);
+                surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
+                surface.commit();
+
+                // Remove this closure after drawing once
+                xdg_surface.quick_assign(|_,_,_| ());
             }
+            _ => (),
         }
     });
 
-    let filter = Filter::new({
+    surface.frame().assign(Filter::new({
         let surface = surface.clone();
         let painter = painter.clone();
 
-        move |event, filter, _| {
-            use wayland_client::protocol::wl_callback::Event::Done;
-            if let (
-                _,
-                Done {
-                    callback_data: time,
-                },
-            ) = event
-            {
+        use wayland_client::protocol::wl_callback::Event::Done;
+        move |event, filter, _| match event {
+            (_, Done { callback_data: time }) => {
                 surface.frame().assign(filter.clone());
-                let buffer = {
-                    let mut painter = painter.borrow_mut();
-                    painter.update_time(time);
-                    painter.draw()
-                }
-                .expect("Failed to draw frame");
+                let mut painter = painter.borrow_mut();
+                painter.update_time(time);
+                let buffer = painter.draw()
+                    .expect("Failed to draw frame");
                 surface.attach(Some(&buffer), 0, 0);
                 surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
                 surface.commit();
             }
+            _ => (),
         }
-    });
-    surface.frame().assign(filter);
+    }));
 }
