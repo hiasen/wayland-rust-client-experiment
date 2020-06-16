@@ -11,7 +11,8 @@ pub fn run(mut display: Display) {
 
     handle
         .insert_source(source, move |_, _, _| {
-            display.dispatch(std::time::Duration::from_secs(0), &mut ())
+            display
+                .dispatch(std::time::Duration::from_secs(0), &mut ())
                 .expect("Error in display.dispatch.");
             display.flush_clients(&mut ());
             Ok(())
