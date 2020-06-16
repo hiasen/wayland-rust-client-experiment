@@ -17,6 +17,3 @@ xkbcommon-sys = "0.7.4"
 [dependencies.wayland-protocols]
 version = "0.26.6"
 features = ["client",]
-
-[workspace]
-members = ["server"]
