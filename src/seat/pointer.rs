@@ -1,21 +1,19 @@
 use bitflags::bitflags;
 use std::fmt;
 use wayland_client::{
-    protocol::{
-        wl_pointer::{ButtonState, Event, Event::*, WlPointer},
-    },
+    protocol::wl_pointer::{ButtonState, Event, Event::*, WlPointer},
     Main,
 };
 
 pub fn handle(pointer: &Main<WlPointer>) {
     let mut pointer_event = PointerEvent::default();
-    pointer.quick_assign(move |_pointer,  event, _data| {
-        match event {
-            Frame => {
-                eprintln!("{}", pointer_event);
-                pointer_event = Default::default();
-            }
-            _ => {pointer_event.update(event);},
+    pointer.quick_assign(move |_pointer, event, _data| match event {
+        Frame => {
+            eprintln!("{}", pointer_event);
+            pointer_event = Default::default();
+        }
+        _ => {
+            pointer_event.update(event);
         }
     });
 }
@@ -127,7 +125,7 @@ impl PointerEvent {
         }
     }
 
-    fn axis_source_type(x: u32) -> &'static str{
+    fn axis_source_type(x: u32) -> &'static str {
         use wayland_client::protocol::wl_pointer::AxisSource;
         if let Some(source) = AxisSource::from_raw(x) {
             match source {
