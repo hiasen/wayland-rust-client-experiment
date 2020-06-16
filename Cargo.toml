@@ -11,6 +11,8 @@ wayland-client = "0.26.6"
 nix = "0.17.0"
 memmap2 = "0.1.0"
 bitflags = "1.2.1"
+xkb = "0.2.1"
+xkbcommon-sys = "0.7.4"
 
 [dependencies.wayland-protocols]
 version = "0.26.6"
