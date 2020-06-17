@@ -28,11 +28,10 @@ fn get_state(
     file: &mut File,
     size: usize,
 ) -> Result<xkb::State, Box<dyn std::error::Error>> {
-    // The file contains a cstring, but we will rather treat it as a buffer with known size.
-    // So strip away the trailing null byte.
-    let size = size - 1;
-    let map = unsafe { memmap2::MmapOptions::new().len(size).map(&file) }?;
-    let keymap = keymap_from_buffer(&xkb_context, &map)?;
+    let buffer = unsafe { memmap2::MmapOptions::new().len(size).map(&file) }?;
+    // Treating the buffer as a slice of chars instead of a CString
+    // by stripping the trailing null byte.
+    let keymap = keymap_from_buffer(&xkb_context, &buffer[..size-1])?;
     let state = keymap.state();
     Ok(state)
 }
@@ -64,15 +63,13 @@ fn handle_after_first_keymap_event(
         } => {
             eprintln!("keyboard enter keys pressed are: ");
 
-            let keys = keys.as_slice();
             // Assume keys are already aligned
-            let (_, keys, _) = unsafe { keys.align_to::<u32>() };
-            for key in keys.iter() {
-                let key = state.key(*key + 8);
-
+            let keys = unsafe { keys.as_slice().align_to::<u32>() }.1
+                .iter()
+                .map(|key| state.key(*key + 8));
+            for key in keys {
                 if let Some(sym) = key.sym() {
-                    let sym_num: u32 = sym.into();
-                    eprint!("sym: {} ({}), ", sym.to_string(), sym_num);
+                    eprint!("sym: {} ({}), ", sym.to_string(), sym.0);
                 } else {
                     eprint!("sym: Unknown ");
                 }

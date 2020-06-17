@@ -1,20 +1,75 @@
 use bitflags::bitflags;
 use std::fmt;
 use wayland_client::{
-    protocol::wl_pointer::{ButtonState, Event, Event::*, WlPointer},
+    protocol::wl_pointer::{ButtonState, Event::*, WlPointer},
     Main,
 };
 
 pub fn handle(pointer: &Main<WlPointer>) {
     let mut pointer_event = PointerEvent::default();
     pointer.quick_assign(move |_pointer, event, _data| match event {
+        Enter {
+            serial,
+            surface_x,
+            surface_y,
+            ..
+        } => {
+            pointer_event.event_mask |= EventMask::ENTER;
+            pointer_event.serial = serial;
+            pointer_event.surface_x = surface_x;
+            pointer_event.surface_y = surface_y;
+        }
+        Leave { serial, .. } => {
+            pointer_event.event_mask |= EventMask::LEAVE;
+            pointer_event.serial = serial;
+        }
+        Motion {
+            time,
+            surface_x,
+            surface_y,
+        } => {
+            pointer_event.event_mask |= EventMask::MOTION;
+            pointer_event.time = time;
+            pointer_event.surface_x = surface_x;
+            pointer_event.surface_y = surface_y;
+        }
+        Button {
+            serial,
+            time,
+            button,
+            state,
+        } => {
+            pointer_event.event_mask |= EventMask::BUTTON;
+            pointer_event.time = time;
+            pointer_event.serial = serial;
+            pointer_event.button = button;
+            pointer_event.state = state.to_raw();
+        }
+        Axis { time, axis, value } => {
+            pointer_event.event_mask |= EventMask::AXIS;
+            pointer_event.time = time;
+            pointer_event.axes[axis.to_raw() as usize].valid = true;
+            pointer_event.axes[axis.to_raw() as usize].value = value;
+        }
+        AxisSource { axis_source } => {
+            pointer_event.event_mask |= EventMask::AXIS_SOURCE;
+            pointer_event.axis_source = axis_source.to_raw();
+        }
+        AxisStop { time, axis } => {
+            pointer_event.event_mask |= EventMask::AXIS_STOP;
+            pointer_event.time = time;
+            pointer_event.axes[axis.to_raw() as usize].valid = true;
+        }
+        AxisDiscrete { axis, discrete } => {
+            pointer_event.event_mask |= EventMask::AXIS_DISCRETE;
+            pointer_event.axes[axis.to_raw() as usize].valid = true;
+            pointer_event.axes[axis.to_raw() as usize].discrete = discrete;
+        }
         Frame => {
             eprintln!("{}", pointer_event);
             pointer_event = Default::default();
         }
-        _ => {
-            pointer_event.update(event);
-        }
+        _ => (),
     });
 }
 
@@ -54,68 +109,6 @@ struct PointerEvent {
 }
 
 impl PointerEvent {
-    fn update(&mut self, event: Event) {
-        match event {
-            Enter {
-                serial,
-                surface_x,
-                surface_y,
-                ..
-            } => {
-                self.event_mask |= EventMask::ENTER;
-                self.serial = serial;
-                self.surface_x = surface_x;
-                self.surface_y = surface_y;
-            }
-            Leave { serial, .. } => {
-                self.event_mask |= EventMask::LEAVE;
-                self.serial = serial;
-            }
-            Motion {
-                time,
-                surface_x,
-                surface_y,
-            } => {
-                self.event_mask |= EventMask::MOTION;
-                self.time = time;
-                self.surface_x = surface_x;
-                self.surface_y = surface_y;
-            }
-            Button {
-                serial,
-                time,
-                button,
-                state,
-            } => {
-                self.event_mask |= EventMask::BUTTON;
-                self.time = time;
-                self.serial = serial;
-                self.button = button;
-                self.state = state.to_raw();
-            }
-            Axis { time, axis, value } => {
-                self.event_mask |= EventMask::AXIS;
-                self.time = time;
-                self.axes[axis.to_raw() as usize].valid = true;
-                self.axes[axis.to_raw() as usize].value = value;
-            }
-            AxisSource { axis_source } => {
-                self.event_mask |= EventMask::AXIS_SOURCE;
-                self.axis_source = axis_source.to_raw();
-            }
-            AxisStop { time, axis } => {
-                self.event_mask |= EventMask::AXIS_STOP;
-                self.time = time;
-                self.axes[axis.to_raw() as usize].valid = true;
-            }
-            AxisDiscrete { axis, discrete } => {
-                self.event_mask |= EventMask::AXIS_DISCRETE;
-                self.axes[axis.to_raw() as usize].valid = true;
-                self.axes[axis.to_raw() as usize].discrete = discrete;
-            }
-            _ => (),
-        }
-    }
     fn axis_name(i: usize) -> &'static str {
         use wayland_client::protocol::wl_pointer::Axis;
         if let Option::Some(Axis::VerticalScroll) = Axis::from_raw(i as u32) {
