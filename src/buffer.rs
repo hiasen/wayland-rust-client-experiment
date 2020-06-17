@@ -3,21 +3,25 @@ use wayland_client::{
     Main,
 };
 use std::error::Error;
-use std::os::unix::io::AsRawFd;
+use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
+use std::os::unix::io::AsRawFd;
 use crate::shared_memory;
 
 pub struct Buffer {
-    _width: usize,
-    wl_buf: wl_buffer::WlBuffer,
+    width: usize,
+    height: usize,
+    wl_buffer: wl_buffer::WlBuffer,
     mmap: shared_memory::MemMap,
 }
 
 impl Buffer {
     pub fn new(shm: &Main<wl_shm::WlShm>, width: usize, height: usize) -> Result<Self, Box<dyn Error>> {
-        let stride = 4 * width;
+        let stride = size_of::<u32>() * width;
         let size = height * stride;
         let mmap = shared_memory::MemMap::anon_file(size)?;
+
+        assert!(Self::is_aligned(&mmap), "{:?} is not sufficiently aligned!", mmap);
 
         let pool = shm
             .create_pool(mmap.backing_file().as_raw_fd(), size as i32);
@@ -33,30 +37,31 @@ impl Buffer {
             wl_buffer::Event::Release => buffer.destroy(),
             _ => (),
         });
-        let buffer = Self {
-            _width: width,
-            wl_buf: wl_buffer.detach(),
-            mmap: mmap,
-        };
-        {
-            let buffer = &buffer;
-            assert_eq!(buffer.len(), width * height);
-        }
-        Ok(buffer)
+
+        Ok(Self {
+            width,
+            height,
+            wl_buffer: wl_buffer.detach(),
+            mmap,
+        })
+    }
+
+    fn is_aligned(buf: &[u8]) -> bool {
+        let (prefix, _, postfix) = unsafe { buf.align_to::<u32>() };
+        prefix.len() == 0 && postfix.len() == 0
     }
 
     pub fn wl_buffer(&self) -> &wl_buffer::WlBuffer {
-        &self.wl_buf
+        &self.wl_buffer
     }
 
-    #[allow(dead_code)]
     pub fn width(&self) -> usize {
-        self._width
+        self.width
     }
 
     #[allow(dead_code)]
     pub fn height(&self) -> usize {
-        self.len() / self._width
+        self.height
     }
 }
 

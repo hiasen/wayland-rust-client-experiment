@@ -13,6 +13,7 @@ pub fn create_anonymous_file() -> Result<File, Box<dyn std::error::Error>> {
     Ok(unsafe { File::from_raw_fd(fd) })
 }
 
+#[derive(Debug)]
 pub struct MemMap {
     buffer: memmap2::MmapMut,
     file: File,
