@@ -3,8 +3,12 @@ use wayland_client::{
     Filter, Main,
 };
 
-use super::painter;
+use crate::painter::Painter;
+use crate::buffer::Buffer;
 use wayland_protocols::xdg_shell::client::{xdg_surface, xdg_wm_base};
+
+const WIDTH: usize = 600;
+const HEIGHT: usize = 400;
 
 pub fn setup(
     compositor: &Main<WlCompositor>,
@@ -21,14 +25,14 @@ pub fn setup(
     xdg_surface.quick_assign({
 
         let surface = surface.clone();
-        let shm = shm.clone();
+        let mut buffer = Buffer::new(&shm, WIDTH, HEIGHT)
+            .expect("Failed to create buffer");
 
         move |xdg_surface, event, _| match event {
             xdg_surface::Event::Configure { serial } => {
                 xdg_surface.ack_configure(serial);
-                let buffer = painter::Painter::draw_once(&shm)
-                    .expect("Failed to draw first frame");
-                surface.attach(Some(&buffer), 0, 0);
+                Painter::draw_once(&mut buffer);
+                surface.attach(Some(buffer.wl_buffer()), 0, 0);
                 surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
                 surface.commit();
 
@@ -41,17 +45,19 @@ pub fn setup(
 
 
     surface.frame().assign(Filter::new({
+        let shm = shm.clone();
         let surface = surface.clone();
-        let mut painter = painter::Painter::new(&shm);
+        let mut painter = Painter::new();
 
         use wayland_client::protocol::wl_callback::Event::Done;
         move |event, filter, _| match event {
             (_, Done { callback_data: time }) => {
                 surface.frame().assign(filter.clone());
                 painter.update_time(time);
-                let buffer = painter.draw()
-                    .expect("Failed to draw frame");
-                surface.attach(Some(&buffer), 0, 0);
+                let mut buffer = Buffer::new(&shm, WIDTH, HEIGHT)
+                    .expect("Failed to create buffer");
+                painter.draw(&mut buffer);
+                surface.attach(Some(buffer.wl_buffer()), 0, 0);
                 surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
                 surface.commit();
             }

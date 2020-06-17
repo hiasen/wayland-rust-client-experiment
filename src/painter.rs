@@ -1,44 +1,32 @@
-use std::error::Error;
-use wayland_client::{
-    protocol::{wl_buffer, wl_shm},
-    Main,
-};
-
 use crate::buffer;
 
 
 pub struct Painter {
-    shm: Main<wl_shm::WlShm>,
     float_offset: f32,
     last_frame: u32,
 }
 
 
 impl Painter {
-    const WIDTH: usize = 600;
-    const HEIGHT: usize = 400;
     const COLOR1: u32 = 0xFF666666;
     const COLOR2: u32 = 0xFFEEEEEE;
 
 
-    pub fn new(shm: &Main<wl_shm::WlShm>) -> Painter {
+    pub fn new() -> Painter {
         Painter {
-            shm: shm.clone(),
             float_offset: 0.0,
             last_frame: 0,
         }
     }
 
-    pub fn draw(&self) -> Result<wl_buffer::WlBuffer, Box<dyn Error>> {
-        let mut buffer = buffer::Buffer::new(&self.shm, Self::WIDTH, Self::HEIGHT)?;
-        Self::draw_checkerboard_pattern(&mut buffer, Self::WIDTH, self.offset());
-        Ok(buffer.wl_buffer().clone())
+    pub fn draw_once(buffer: &mut buffer::Buffer) {
+        let width = buffer.width();
+        Self::draw_checkerboard_pattern(buffer, width, 0);
     }
 
-    pub fn draw_once(shm: &Main<wl_shm::WlShm>) -> Result<wl_buffer::WlBuffer, Box<dyn Error>> {
-        let mut buffer = buffer::Buffer::new(shm, Self::WIDTH, Self::HEIGHT)?;
-        Self::draw_checkerboard_pattern(&mut buffer, Self::WIDTH, 0);
-        Ok(buffer.wl_buffer().clone())
+    pub fn draw(&self, buffer: &mut buffer::Buffer) {
+        let width = buffer.width();
+        Self::draw_checkerboard_pattern(buffer, width, self.offset());
     }
 
     fn draw_checkerboard_pattern(buffer: &mut [u32], width: usize, offset: usize) {
