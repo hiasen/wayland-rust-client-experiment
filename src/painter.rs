@@ -35,6 +35,12 @@ impl Painter {
         Ok(buffer.wl_buffer().clone())
     }
 
+    pub fn draw_once(shm: &Main<wl_shm::WlShm>) -> Result<wl_buffer::WlBuffer, Box<dyn Error>> {
+        let mut buffer = buffer::Buffer::new(shm, Self::WIDTH, Self::HEIGHT)?;
+        Self::draw_checkerboard_pattern(&mut buffer, Self::WIDTH, 0);
+        Ok(buffer.wl_buffer().clone())
+    }
+
     fn draw_checkerboard_pattern(buffer: &mut [u32], width: usize, offset: usize) {
         for (y, row) in buffer.chunks_exact_mut(width).enumerate() {
             for (x, pixel) in row.iter_mut().enumerate() {
