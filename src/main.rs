@@ -12,6 +12,7 @@ mod painter;
 mod seat;
 mod shared_memory;
 mod surface;
+mod buffer;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let display = Display::connect_to_env()?;

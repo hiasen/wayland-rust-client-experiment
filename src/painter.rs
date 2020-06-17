@@ -1,69 +1,60 @@
-use super::shared_memory;
 use std::error::Error;
-use std::os::unix::io::AsRawFd;
 use wayland_client::{
     protocol::{wl_buffer, wl_shm},
     Main,
 };
 
+use crate::buffer;
+
+
 pub struct Painter {
     shm: Main<wl_shm::WlShm>,
-    offset: f32,
+    float_offset: f32,
     last_frame: u32,
 }
 
+
 impl Painter {
+    const WIDTH: usize = 600;
+    const HEIGHT: usize = 400;
+    const COLOR1: u32 = 0xFF666666;
+    const COLOR2: u32 = 0xFFEEEEEE;
+
+
     pub fn new(shm: &Main<wl_shm::WlShm>) -> Painter {
         Painter {
             shm: shm.clone(),
-            offset: 0.0,
+            float_offset: 0.0,
             last_frame: 0,
         }
     }
+
     pub fn draw(&self) -> Result<wl_buffer::WlBuffer, Box<dyn Error>> {
-        let width = 600;
-        let height = 400;
-        let stride = 4 * width;
-        let size = height * stride;
-        let mut buffer = shared_memory::MemMap::anon_file(size)?;
-        let (_, pixel_buffer, _) = unsafe { (&mut buffer).align_to_mut() };
-        assert_eq!(pixel_buffer.len(), width * height);
-
-        self.draw_checkerboard_pattern(pixel_buffer, width, (self.offset as usize) % 8);
-
-        let pool = self
-            .shm
-            .create_pool(buffer.backing_file().as_raw_fd(), size as i32);
-        let wl_buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            wl_shm::Format::Xrgb8888,
-        );
-        pool.destroy();
-        wl_buffer.quick_assign(|buffer, event, _| match event {
-            wl_buffer::Event::Release => buffer.destroy(),
-            _ => (),
-        });
-        Ok(wl_buffer.detach())
+        let mut buffer = buffer::Buffer::new(&self.shm, Self::WIDTH, Self::HEIGHT)?;
+        Self::draw_checkerboard_pattern(&mut buffer, Self::WIDTH, self.offset());
+        Ok(buffer.wl_buffer().clone())
     }
 
-    fn draw_checkerboard_pattern(&self, buffer: &mut [u32], width: usize, offset: usize) {
+    fn draw_checkerboard_pattern(buffer: &mut [u32], width: usize, offset: usize) {
         for (y, row) in buffer.chunks_exact_mut(width).enumerate() {
             for (x, pixel) in row.iter_mut().enumerate() {
                 *pixel = if ((x + offset) + (y + offset) / 8 * 8) % 16 < 8 {
-                    0xFF666666
+                    Self::COLOR1
                 } else {
-                    0xFFEEEEEE
+                    Self::COLOR2
                 };
             }
         }
     }
+
+    fn offset(&self) -> usize {
+        (self.float_offset as usize) % 8
+    }
+
     pub fn update_time(&mut self, time: u32) {
         if self.last_frame != 0 {
             let elapsed = time - self.last_frame;
-            self.offset += (elapsed as f32) / 1000.0 * 24.0;
+            self.float_offset += (elapsed as f32) / 1000.0 * 24.0;
         }
         self.last_frame = time;
     }
