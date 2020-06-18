@@ -19,11 +19,6 @@ impl Painter {
         }
     }
 
-    pub fn draw_once(buffer: &mut buffer::Buffer) {
-        let width = buffer.width();
-        Self::draw_checkerboard_pattern(buffer, width, 0);
-    }
-
     pub fn draw(&self, buffer: &mut buffer::Buffer) {
         let width = buffer.width();
         Self::draw_checkerboard_pattern(buffer, width, self.offset());

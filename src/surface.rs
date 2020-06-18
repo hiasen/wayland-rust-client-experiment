@@ -53,6 +53,15 @@ impl State {
         };
     }
 
+    fn draw(&self) {
+        let mut buffer = Buffer::new(&self.shm, self.width, self.height)
+            .expect("Failed to create buffer");
+        self.painter.draw(&mut buffer);
+        self.surface.attach(Some(buffer.wl_buffer()), 0, 0);
+        self.surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
+        self.surface.commit();
+    }
+
     fn handle_toplevel(&mut self, event: ToplevelEvent) {
         use ToplevelEvent::*;
         match event {
@@ -75,12 +84,7 @@ impl State {
             xdg_surface::Event::Configure { serial } => {
                 xdg_surface.ack_configure(serial);
                 if !self.has_drawn {
-                    let mut buffer = Buffer::new(&self.shm, self.width, self.height)
-                        .expect("Failed to create buffer");
-                    Painter::draw_once(&mut buffer);
-                    self.surface.attach(Some(buffer.wl_buffer()), 0, 0);
-                    self.surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
-                    self.surface.commit();
+                    self.draw();
                     self.has_drawn = true;
                 }
             }
@@ -95,12 +99,7 @@ impl State {
     ) {
         self.surface.frame().assign(filter);
         self.painter.update_time(time);
-        let mut buffer = Buffer::new(&self.shm, self.width, self.height)
-            .expect("Failed to create buffer");
-        self.painter.draw(&mut buffer);
-        self.surface.attach(Some(buffer.wl_buffer()), 0, 0);
-        self.surface.damage_buffer(0, 0, i32::MAX, i32::MAX);
-        self.surface.commit();
+        self.draw();
     }
 }
 
