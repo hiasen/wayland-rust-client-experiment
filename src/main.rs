@@ -35,10 +35,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => ()
     });
 
-    let is_closed = surface::setup(&compositor, &xdg_wm_base, &shm);
+    let surface_state = surface::setup(&compositor, &xdg_wm_base, &shm);
     seat::handle(&seat);
 
-    while !*is_closed.borrow() {
+    while !surface_state.borrow().is_closed() {
         event_queue.dispatch(&mut (), |_, _, _| {})?;
     }
     Ok(())
