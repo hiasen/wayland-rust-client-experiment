@@ -27,6 +27,18 @@ pub struct State {
 
 impl State {
 
+    fn new(surface: &Main<WlSurface>, shm: &Main<WlShm>) -> Self {
+        Self {
+            surface: surface.clone(),
+            width: WIDTH,
+            height: HEIGHT,
+            asked_to_close: false,
+            has_drawn: false,
+            shm: shm.clone(),
+            painter: Painter::new(),
+        }
+    }
+
     pub fn is_closed(&self) -> bool {
         self.asked_to_close
     }
@@ -104,15 +116,7 @@ pub fn setup(
     toplevel.set_title(String::from("Example client"));
     surface.commit();
 
-    let state = Rc::new(RefCell::new(State {
-        surface: surface.clone(),
-        width: WIDTH,
-        height: HEIGHT,
-        asked_to_close: false,
-        has_drawn: false,
-        shm: shm.clone(),
-        painter: Painter::new(),
-    }));
+    let state = Rc::new(RefCell::new(State::new(&surface, &shm)));
     
     toplevel.quick_assign({
         let state = state.clone();
